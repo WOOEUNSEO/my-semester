@@ -399,7 +399,7 @@
   ];
 
   window.DEFAULT_SEMESTER_DATA = {
-    version: 5,
+    version: 6,
     meta: {
       year: 2026,
       term: "2학기",
@@ -408,8 +408,8 @@
     },
     courses,
     chapels: [
-      { id: "chapel-b", name: "채플과 섬김", division: "01", day: 1, start: 11, end: 12, period: "3교시", area: "B", seat: "105", rowStart: 100, rowEnd: 115, location: "백석홀 대강당", color: "#d8a2ad" },
-      { id: "chapel-a", name: "채플과 섬김", division: "04", day: 1, start: 13, end: 14, period: "5교시", area: "A", seat: "132", rowStart: 116, rowEnd: 132, location: "백석홀 대강당", color: "#d8a2ad" }
+      { id: "chapel-b", name: "채플과 섬김", division: "01", day: 1, start: 11, end: 12, period: "3교시", area: "B", seat: "105", rowStart: 96, rowEnd: 105, location: "백석홀 대강당", color: "#d8a2ad" },
+      { id: "chapel-a", name: "채플과 섬김", division: "04", day: 1, start: 13, end: 14, period: "5교시", area: "A", seat: "132", rowStart: 131, rowEnd: 141, location: "백석홀 대강당", color: "#d8a2ad" }
     ],
     tasks: [
       { id: "python-practice-1", courseId: "python", title: "실습과제 1", type: "assignment", dueDate: "2026-09-15", notes: "3주차 과제 · 실제 마감 시각 확인", completed: false },

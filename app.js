@@ -10,6 +10,8 @@ let semester = loadSemesterData();
 let currentDialogSubmit = null;
 let toastTimer = 0;
 let saveTimer = 0;
+let dialogScrollY = 0;
+const taskDragState = { id: "", courseId: "", targetId: "", after: false, pointerId: null };
 
 const ui = {
   view: "schedule",
@@ -72,7 +74,9 @@ function normalizeSemesterData(candidate) {
 
   const savedVersion = Number(candidate.version || 0);
   const currentVersion = Number(defaults.version || 1);
-  const isLegacy = savedVersion < currentVersion;
+  // v6 only corrects the fixed chapel-seat ranges. Treating v5 data as legacy
+  // here would replace a user's edited course details and weekly plan text.
+  const isLegacy = savedVersion < 5;
   const savedCourses = new Map(candidate.courses.filter((course) => isPlainRecord(course) && typeof course.id === "string").map((course) => [course.id, course]));
   const courses = defaults.courses.map((defaultCourse) => {
     const savedCourse = savedCourses.get(defaultCourse.id);
@@ -153,6 +157,14 @@ function normalizeSemesterData(candidate) {
   const exams = isLegacy && savedExams ? mergeRecordsById(defaults.exams, savedExams, validExam) : (savedExams ? savedExams.filter(validExam) : defaults.exams);
   const savedChapelMap = new Map((savedChapels || []).map((chapel) => [chapel.id, chapel]));
   const chapels = defaults.chapels.map((chapel) => ({ ...chapel, ...(savedChapelMap.get(chapel.id) || {}) }));
+
+  if (savedVersion < 6) {
+    const defaultChapelMap = new Map(defaults.chapels.map((chapel) => [chapel.id, chapel]));
+    chapels.forEach((chapel) => {
+      const updated = defaultChapelMap.get(chapel.id);
+      if (updated) Object.assign(chapel, { rowStart: updated.rowStart, rowEnd: updated.rowEnd });
+    });
+  }
 
   if (savedVersion < 4) {
     const updatedTask = defaults.tasks.find((item) => item.id === "human-quiz");
@@ -396,7 +408,7 @@ function renderPageHeading(eyebrow, title, description, actions = "") {
   `;
 }
 
-function compareTasksByDueDate(a, b) {
+function compareTaskDates(a, b) {
   const aHasDate = Boolean(a.dueDate);
   const bHasDate = Boolean(b.dueDate);
   if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
@@ -406,10 +418,50 @@ function compareTasksByDueDate(a, b) {
   return aOrder - bOrder || a.title.localeCompare(b.title, "ko");
 }
 
-function renderTaskItem(task) {
+function taskManualOrder(task) {
+  return typeof task.manualOrder === "number" && Number.isFinite(task.manualOrder) ? task.manualOrder : null;
+}
+
+function compareTasksByDueDate(a, b) {
+  const aManual = taskManualOrder(a);
+  const bManual = taskManualOrder(b);
+  if (a.courseId === b.courseId && aManual !== null && bManual !== null && aManual !== bManual) return aManual - bManual;
+  return compareTaskDates(a, b);
+}
+
+function placeTaskByDate(task, previousCourseId = "") {
+  const reindexCourse = (courseId) => {
+    semester.tasks.filter((item) => item.courseId === courseId).sort(compareTasksByDueDate).forEach((item, index) => { item.manualOrder = index; });
+  };
+  if (previousCourseId && previousCourseId !== task.courseId) reindexCourse(previousCourseId);
+
+  const siblings = semester.tasks.filter((item) => item.courseId === task.courseId && item.id !== task.id).sort(compareTasksByDueDate);
+  const insertAt = siblings.findIndex((item) => compareTaskDates(task, item) < 0);
+  siblings.splice(insertAt < 0 ? siblings.length : insertAt, 0, task);
+  siblings.forEach((item, index) => { item.manualOrder = index; });
+}
+
+function reorderTaskWithinCourse(draggedId, targetId, after) {
+  const dragged = semester.tasks.find((task) => task.id === draggedId);
+  const target = semester.tasks.find((task) => task.id === targetId);
+  if (!dragged || !target || dragged.id === target.id || dragged.courseId !== target.courseId) return false;
+
+  const ordered = semester.tasks.filter((task) => task.courseId === dragged.courseId).sort(compareTasksByDueDate);
+  const draggedIndex = ordered.findIndex((task) => task.id === dragged.id);
+  if (draggedIndex < 0) return false;
+  ordered.splice(draggedIndex, 1);
+  const targetIndex = ordered.findIndex((task) => task.id === target.id);
+  if (targetIndex < 0) return false;
+  ordered.splice(targetIndex + (after ? 1 : 0), 0, dragged);
+  ordered.forEach((task, index) => { task.manualOrder = index; });
+  return true;
+}
+
+function renderTaskItem(task, { draggable = false } = {}) {
   const course = courseById(task.courseId);
   return `
-    <div class="task-item${task.completed ? " completed" : ""}" data-task-id="${task.id}">
+    <div class="task-item${task.completed ? " completed" : ""}" data-task-id="${task.id}" data-task-course="${task.courseId}">
+      ${draggable ? `<button class="task-drag-handle" type="button" data-task-drag="${task.id}" aria-label="${escapeHtml(task.title)} 순서 이동" title="드래그해서 순서 변경"><span aria-hidden="true">⠿</span></button>` : `<span class="task-drag-placeholder" aria-hidden="true"></span>`}
       <label class="check-control">
         <input type="checkbox" data-task-toggle="${task.id}" aria-label="${escapeHtml(task.completed ? `완료 취소: ${task.title}` : `완료 표시: ${task.title}`)}" ${task.completed ? "checked" : ""} />
         <span aria-hidden="true"></span>
@@ -439,7 +491,7 @@ function renderTasksView() {
           <div><span class="course-kind-dot" aria-hidden="true"></span><div><h2>${escapeHtml(course.shortName || course.name)}</h2><small>${allCourseTasks.filter((task) => task.completed).length}/${allCourseTasks.length} 완료</small></div></div>
           <button class="icon-text-button" type="button" data-action="add-task" data-course-id="${course.id}">+ 추가</button>
         </header>
-        <div class="task-list">${tasks.length ? tasks.map(renderTaskItem).join("") : `<div class="compact-empty">${ui.taskFilter === "all" ? "아직 등록된 항목이 없어요." : "이 조건에 맞는 항목이 없어요."}</div>`}</div>
+        <div class="task-list">${tasks.length ? tasks.map((task) => renderTaskItem(task, { draggable: ui.taskFilter === "all" })).join("") : `<div class="compact-empty">${ui.taskFilter === "all" ? "아직 등록된 항목이 없어요." : "이 조건에 맞는 항목이 없어요."}</div>`}</div>
       </article>
     `;
   }).join("");
@@ -453,7 +505,7 @@ function renderTasksView() {
     </div>
     <div class="view-toolbar"><div class="segmented-control" role="group" aria-label="체크리스트 필터">
       ${[["all", "전체"], ["todo", "할 일"], ["done", "완료"]].map(([value, label]) => `<button class="${ui.taskFilter === value ? "active" : ""}" type="button" data-task-filter="${value}" aria-pressed="${ui.taskFilter === value}">${label}</button>`).join("")}
-    </div></div>
+    </div>${ui.taskFilter === "all" ? `<small class="task-drag-help">손잡이를 드래그해 과목 안에서 순서를 바꿀 수 있어요.</small>` : ""}</div>
     <div class="task-groups">${groups}</div>
   `;
 }
@@ -751,6 +803,20 @@ function renderCourseView() {
   `;
 }
 
+function lockDialogBackground() {
+  if (document.body.classList.contains("dialog-open")) return;
+  dialogScrollY = window.scrollY;
+  document.body.style.top = `-${dialogScrollY}px`;
+  document.body.classList.add("dialog-open");
+}
+
+function unlockDialogBackground() {
+  if (!document.body.classList.contains("dialog-open")) return;
+  document.body.classList.remove("dialog-open");
+  document.body.style.top = "";
+  window.scrollTo(0, dialogScrollY);
+}
+
 function openDialog({ eyebrow = "EDIT", title, body, submitLabel = "저장", onSubmit }) {
   const dialog = document.getElementById("editorDialog");
   document.getElementById("dialogEyebrow").textContent = eyebrow;
@@ -758,6 +824,7 @@ function openDialog({ eyebrow = "EDIT", title, body, submitLabel = "저장", onS
   const form = document.getElementById("editorForm");
   form.innerHTML = `${body}<div class="dialog-actions"><button class="soft-button" type="button" data-dialog-cancel>취소</button><button class="primary-button" type="submit">${escapeHtml(submitLabel)}</button></div>`;
   currentDialogSubmit = onSubmit;
+  lockDialogBackground();
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
   requestAnimationFrame(() => form.querySelector("input, textarea, select")?.focus());
@@ -768,6 +835,7 @@ function closeDialog() {
   currentDialogSubmit = null;
   if (dialog.open && typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
+  unlockDialogBackground();
 }
 
 function courseOptions(selected = "") {
@@ -792,10 +860,11 @@ function openTaskEditor(courseId = semester.courses[0]?.id, taskId = "") {
       ${task ? `<button class="delete-button" type="button" data-delete-task="${task.id}">이 항목 삭제</button>` : ""}
     `,
     onSubmit: (formData) => {
+      const previousCourseId = task?.courseId || "";
       const next = { id: task?.id || makeId("task"), title: String(formData.get("title") || "").trim(), courseId: String(formData.get("courseId") || ""), type: String(formData.get("type") || "other"), dueDate: String(formData.get("dueDate") || ""), notes: String(formData.get("notes") || "").trim(), completed: formData.get("completed") === "on" };
       if (task) Object.assign(task, next);
       else semester.tasks.push(next);
-      semester.tasks.sort(compareTasksByDueDate);
+      placeTaskByDate(task || next, previousCourseId);
       persistSemester();
       renderActiveView();
       showToast(task ? "체크리스트를 수정했어요." : "체크리스트에 추가했어요.");
@@ -1046,7 +1115,63 @@ function resetData() {
   showToast("처음 데이터로 되돌렸어요.");
 }
 
+function clearTaskDragVisuals() {
+  document.querySelectorAll(".task-item.dragging, .task-item.drop-before, .task-item.drop-after").forEach((item) => item.classList.remove("dragging", "drop-before", "drop-after"));
+  document.body.classList.remove("task-reordering");
+}
+
+function updateTaskDragTarget(clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY)?.closest(".task-item");
+  document.querySelectorAll(".task-item.drop-before, .task-item.drop-after").forEach((item) => item.classList.remove("drop-before", "drop-after"));
+  if (!target || target.dataset.taskId === taskDragState.id || target.dataset.taskCourse !== taskDragState.courseId) {
+    taskDragState.targetId = "";
+    return;
+  }
+  const bounds = target.getBoundingClientRect();
+  taskDragState.targetId = target.dataset.taskId;
+  taskDragState.after = clientY > bounds.top + bounds.height / 2;
+  target.classList.add(taskDragState.after ? "drop-after" : "drop-before");
+}
+
+function finishTaskDrag(commit) {
+  const { id, targetId, after } = taskDragState;
+  clearTaskDragVisuals();
+  Object.assign(taskDragState, { id: "", courseId: "", targetId: "", after: false, pointerId: null });
+  if (!commit || !targetId || !reorderTaskWithinCourse(id, targetId, after)) return;
+  persistSemester();
+  renderTasksView();
+  showToast("체크리스트 순서를 바꿨어요.");
+}
+
 function bindEvents() {
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-task-drag]");
+    if (!handle || ui.taskFilter !== "all" || document.body.classList.contains("dialog-open")) return;
+    const item = handle.closest(".task-item");
+    if (!item) return;
+    event.preventDefault();
+    Object.assign(taskDragState, { id: item.dataset.taskId, courseId: item.dataset.taskCourse, targetId: "", after: false, pointerId: event.pointerId });
+    item.classList.add("dragging");
+    document.body.classList.add("task-reordering");
+    handle.setPointerCapture?.(event.pointerId);
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!taskDragState.id || event.pointerId !== taskDragState.pointerId) return;
+    event.preventDefault();
+    updateTaskDragTarget(event.clientX, event.clientY);
+  });
+
+  document.addEventListener("pointerup", (event) => {
+    if (!taskDragState.id || event.pointerId !== taskDragState.pointerId) return;
+    finishTaskDrag(true);
+  });
+
+  document.addEventListener("pointercancel", (event) => {
+    if (!taskDragState.id || event.pointerId !== taskDragState.pointerId) return;
+    finishTaskDrag(false);
+  });
+
   document.addEventListener("click", (event) => {
     const viewButton = event.target.closest("[data-view]");
     if (viewButton) {
@@ -1220,7 +1345,10 @@ function bindEvents() {
   });
 
   document.getElementById("dialogCloseButton").addEventListener("click", closeDialog);
-  document.getElementById("editorDialog").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeDialog(); });
+  const editorDialog = document.getElementById("editorDialog");
+  editorDialog.addEventListener("click", (event) => { if (event.target === event.currentTarget) closeDialog(); });
+  editorDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeDialog(); });
+  editorDialog.addEventListener("close", unlockDialogBackground);
   document.getElementById("themeToggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 
   const dock = document.getElementById("courseDock");
@@ -1237,7 +1365,11 @@ function bindEvents() {
     event.target.value = "";
   });
 
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeCourseDock(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (taskDragState.id) finishTaskDrag(false);
+    closeCourseDock();
+  });
   window.addEventListener("pagehide", () => {
     clearTimeout(saveTimer);
     persistSemester();
