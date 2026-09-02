@@ -4,10 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
-  <meta name="theme-color" content="#10131b" />
+  <meta name="theme-color" content="#101622" />
   <title>My Semester</title>
   <meta name="description" content="시간표, 수업계획, 과제와 메모를 한곳에서 정리하는 개인 학기 대시보드" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   <script>
     try {
       const savedTheme = localStorage.getItem("my-semester:theme");
@@ -15,7 +17,7 @@
       document.documentElement.dataset.theme = theme;
     } catch (_) {}
   </script>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260902-compact" />
 </head>
 <body>
   <a class="skip-link" href="#mainContent">본문으로 건너뛰기</a>
@@ -133,6 +135,6 @@
     </div>
   </dialog>
   <script src="data.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260902-compact"></script>
 </body>
 </html>

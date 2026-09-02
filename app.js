@@ -487,8 +487,8 @@ function renderCalendarView() {
       <div class="calendar-day${outside ? " outside" : ""}${selected ? " selected" : ""}">
         <button class="calendar-day-number" type="button" data-calendar-day="${iso}" aria-label="${formatDate(iso, { includeYear: true })}">${date.getDate()}</button>
         <div class="calendar-day-events">
-          ${dayItems.slice(0, 3).map((item) => `<button type="button" data-calendar-kind="${item.kind}" data-calendar-id="${item.id}" style="--event-color:${item.color}">${escapeHtml(item.shortTitle)}</button>`).join("")}
-          ${dayItems.length > 3 ? `<button class="calendar-more" type="button" data-calendar-day="${iso}">+${dayItems.length - 3}개</button>` : ""}
+          ${dayItems.slice(0, 2).map((item) => `<button type="button" data-calendar-kind="${item.kind}" data-calendar-id="${item.id}" style="--event-color:${item.color}">${escapeHtml(item.shortTitle)}</button>`).join("")}
+          ${dayItems.length > 2 ? `<button class="calendar-more" type="button" data-calendar-day="${iso}">+${dayItems.length - 2}개</button>` : ""}
         </div>
       </div>
     `);
@@ -504,8 +504,10 @@ function renderCalendarView() {
           <div><strong>${monthLabel}</strong><small>${items.filter((item) => { const date = dateFromIso(item.date); return date?.getFullYear() === year && date?.getMonth() === month; }).length}개 일정</small></div>
           <div class="calendar-toolbar-actions"><button class="soft-button" type="button" data-calendar-today="true">오늘</button><button class="soft-button" type="button" data-calendar-move="1" aria-label="다음 달">→</button></div>
         </header>
-        <div class="calendar-weekdays">${calendarWeekdays.map((day) => `<span>${day}</span>`).join("")}</div>
-        <div class="calendar-grid">${dayCells.join("")}</div>
+        <div class="calendar-viewport">
+          <div class="calendar-weekdays">${calendarWeekdays.map((day) => `<span>${day}</span>`).join("")}</div>
+          <div class="calendar-grid">${dayCells.join("")}</div>
+        </div>
       </section>
       <aside class="day-agenda">
         <div class="day-agenda-head"><div><p class="eyebrow">SELECTED DAY</p><h2>${formatDate(ui.selectedDate, { includeYear: true })}</h2></div><button class="icon-text-button" type="button" data-action="add-event" data-date="${ui.selectedDate}">+ 메모</button></div>
@@ -670,7 +672,7 @@ function openTaskEditor(courseId = semester.courses[0]?.id, taskId = "") {
         <label class="field"><span>과목</span><select name="courseId">${courseOptions(task?.courseId || courseId)}</select></label>
         <label class="field"><span>구분</span><select name="type">${[["assignment", "과제"], ["online", "강의 시청"], ["quiz", "퀴즈"], ["review", "복습"], ["other", "기타"]].map(([value, label]) => `<option value="${value}" ${task?.type === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
         <label class="field"><span>마감일</span><input name="dueDate" type="date" value="${escapeHtml(task?.dueDate || "")}" /></label>
-        <label class="field check-field"><span>상태</span><label><input name="completed" type="checkbox" ${task?.completed ? "checked" : ""} /> 완료됨</label></label>
+        <div class="field check-field"><span>상태</span><label><input name="completed" type="checkbox" ${task?.completed ? "checked" : ""} /> 완료됨</label></div>
         <label class="field full"><span>메모</span><textarea name="notes" rows="4" placeholder="제출 링크, 준비물 등을 적으세요.">${escapeHtml(task?.notes || "")}</textarea></label>
       </div>
       ${task ? `<button class="delete-button" type="button" data-delete-task="${task.id}">이 항목 삭제</button>` : ""}
