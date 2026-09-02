@@ -12,7 +12,7 @@
       const normalized = typeof source === "string" ? { topic: source } : (source || {});
       return {
         week: index + 1,
-        date: addDays(firstDate, index * 7),
+        date: normalized.date || addDays(firstDate, index * 7),
         topic: normalized.topic || `${index + 1}주차 수업`,
         detail: normalized.detail || "",
         materials: normalized.materials || "",
@@ -119,8 +119,8 @@
       code: "3205101",
       section: "",
       credits: "2학점 · 이론 2",
-      meetingLabel: "화요일 6교시",
-      meetings: [{ day: 2, start: 14, end: 15, room: "진리 509" }],
+      meetingLabel: "화요일 6~7교시",
+      meetings: [{ day: 2, start: 14, end: 16, room: "진리 509" }],
       description: "AI 시대에 인간 고유의 가치와 S-PIPES 인성을 성찰하고, 세계시민으로서 국제사회 문제를 윤리적으로 해결하는 역량을 프로젝트로 기르는 수업입니다.",
       goals: ["기계와 차별화되는 인간의 내면 역량 학습", "지구촌 공동체 문제를 이해하고 AI를 윤리적으로 활용", "사회공헌 역량과 책임 있는 세계시민 행동 개발", "학습 내용을 개인·팀 프로젝트와 현장에 적용"],
       textbooks: ["S-PIPES 인성개발리더십 · 이계능 외", "인성전공융합론 · 이계능 외", "S-PIPES Theory · 이계능"],
@@ -208,26 +208,26 @@
       goals: ["기독교 인성의 핵심 덕목 이해", "공감·수용·존중·감사·겸손 등 대인관계 역량 강화", "공동체를 섬기고 시민의식을 실천하는 태도 형성"],
       textbooks: ["사람다운 사람 · 뷰리출판"],
       grading: [{ label: "출석", value: 20 }, { label: "교과목 역량평가", value: 80 }],
-      policies: ["출석 평가는 학사 출석 기준에 따름", "8주차 정직 수업에서 필요 시 수시고사 가능", "15주차 대인관계 역량을 평가하는 논술형 기말고사"],
+      policies: ["출석 평가는 학사 출석 기준에 따름", "8주차는 수시 원격수업으로 진행", "14주차 과제·서류 마감", "15주차 종강예배 필참 · 출석점수 반영"],
       links: [],
       weeks: makeWeeks("2026-09-01", [
-        "강의 소개 · 설문조사",
-        "사람다운 사람이란?",
-        "역지사지로 공감능력 키우기",
-        "자기 수용은 건강한 자존감의 기초",
-        "존중하면 사람을 얻는다",
-        "감사는 표현으로 완성된다",
-        "겸손 · 자기보다 남을 낫게 여기고",
-        { topic: "정직이 최선의 방책이다", assignment: "수시고사 여부 확인" },
-        "절제의 미덕을 깨우라",
-        "말은 인생의 핸들이다",
-        "건강한 삶을 위한 마음 관리",
-        "용서 · 마음의 감옥에서 자유를",
-        "긍휼과 나눔 · 청지기 정신으로",
-        "공동체 삶과 시민의식",
-        { topic: "기말고사", detail: "대인관계 역량 논술 평가" }
+        { topic: "O.T. · 1장 사람다운 사람이란?", assignment: "깨적톡 연습" },
+        { topic: "2장 역지사지로 공감능력을 키워라", assignment: "깨적톡 연습" },
+        { topic: "3장 자기수용은 건강한 자존감의 기초이다", assignment: "깨적톡 연습", detail: "자소서 제출" },
+        { topic: "4장 존중하면 사람을 얻는다", assignment: "깨적톡 1" },
+        { topic: "5장 감사는 표현으로 완성된다", assignment: "깨적톡 2" },
+        { topic: "6장 겸손, 자기보다 남을 낫게 여겨라", assignment: "깨적톡 3" },
+        { topic: "7장 정직이 최선의 방책이다", assignment: "깨적톡 4" },
+        { topic: "8장 절제의 미덕을 배우라", assignment: "깨적톡 5", detail: "수시 원격수업" },
+        { topic: "9장 말은 인생의 핸들이다", assignment: "깨적톡 6" },
+        { topic: "10장 건강한 삶을 위해 마음관리를 하라", assignment: "깨적톡 7" },
+        { topic: "11장 용서, 마음의 감옥에서 자유를 누려라", assignment: "깨적톡 8" },
+        { topic: "12장 긍휼과 나눔, 청지기정신을 실천하라", assignment: "깨적톡 9" },
+        { topic: "13장 공동체 삶을 위한 시민의식을 가져라", assignment: "깨적톡 10" },
+        { topic: "기말시험", assignment: "과제·서류 마감일" },
+        { date: "2026-12-15", topic: "종강예배", detail: "필참 · 출석점수 반영" }
       ]),
-      examMemo: "8주차 수업에서 필요 시 수시고사가 있을 수 있습니다. 15주차에는 대인관계 역량을 평가하는 논술형 기말고사가 예정되어 있습니다.",
+      examMemo: "14주차 기말시험과 과제·서류 마감이 안내되어 있습니다. 15주차 종강예배는 필참이며 출석점수에 반영됩니다.",
       courseMemo: ""
     },
     {
@@ -399,7 +399,7 @@
   ];
 
   window.DEFAULT_SEMESTER_DATA = {
-    version: 3,
+    version: 4,
     meta: {
       year: 2026,
       term: "2학기",
@@ -408,8 +408,8 @@
     },
     courses,
     chapels: [
-      { id: "chapel-b", name: "채플과 섬김", division: "01", day: 1, start: 11, end: 12, period: "3교시", area: "B", seat: "105", location: "백석홀 대강당", color: "#d8a2ad" },
-      { id: "chapel-a", name: "채플과 섬김", division: "04", day: 1, start: 13, end: 14, period: "5교시", area: "A", seat: "132", location: "백석홀 대강당", color: "#d8a2ad" }
+      { id: "chapel-b", name: "채플과 섬김", division: "01", day: 1, start: 11, end: 12, period: "3교시", area: "B", seat: "105", rowStart: 100, rowEnd: 115, location: "백석홀 대강당", color: "#d8a2ad" },
+      { id: "chapel-a", name: "채플과 섬김", division: "04", day: 1, start: 13, end: 14, period: "5교시", area: "A", seat: "132", rowStart: 116, rowEnd: 132, location: "백석홀 대강당", color: "#d8a2ad" }
     ],
     tasks: [
       { id: "python-practice-1", courseId: "python", title: "실습과제 1", type: "assignment", dueDate: "2026-09-15", notes: "3주차 과제 · 실제 마감 시각 확인", completed: false },
@@ -432,7 +432,7 @@
       { id: "social-field", courseId: "social-economy", title: "현장 방문·사례 분석", type: "assignment", dueDate: "", notes: "11~14주차 발표 준비", completed: false },
       { id: "social-portfolio", courseId: "social-economy", title: "최종 보고서·포트폴리오", type: "assignment", dueDate: "2026-12-08", notes: "15주차 최종성과 평가", completed: false },
       { id: "human-book", courseId: "human-way", title: "교재 준비", type: "other", dueDate: "", notes: "사람다운 사람 · 뷰리출판", completed: false },
-      { id: "human-quiz", courseId: "human-way", title: "8주차 수시고사 여부 확인", type: "quiz", dueDate: "2026-10-20", notes: "정직 수업에서 필요 시 실시", completed: false },
+      { id: "human-quiz", courseId: "human-way", title: "8주차 수시 원격수업 확인", type: "online", dueDate: "2026-10-20", notes: "깨적톡 5 · 수시 원격수업", completed: false },
       { id: "english-assignment", courseId: "english-b", title: "과제·발표 공지 확인", type: "assignment", dueDate: "", notes: "평가 20점 · 구체 일정 미기재", completed: false },
       { id: "english-review", courseId: "english-b", title: "주차별 표현 복습", type: "review", dueDate: "", notes: "교재 대화문·어휘·문형", completed: false },
       { id: "unix-first", courseId: "unix", title: "첫 수업 참석·기초 테스트", type: "other", dueDate: "2026-09-07", notes: "첫 수업 참석 필수", completed: false },
@@ -454,7 +454,7 @@
       { id: "exam-ai-final", courseId: "ai-citizen", title: "기말평가", type: "final", date: "2026-12-08", location: "강의실", range: "AI 인성과 글로벌 시티즌십", criteria: "14주차 선택서답·13~15주차 지필평가 관계 확인" },
       { id: "exam-social-mid", courseId: "social-economy", title: "중간고사", type: "midterm", date: "2026-10-20", location: "강의실", range: "1~7주차 사회적경제 기초", criteria: "세부 형식 공지 확인" },
       { id: "exam-social-final", courseId: "social-economy", title: "기말고사·최종성과 평가", type: "final", date: "2026-12-08", location: "강의실", range: "사회적경제 사례 조사와 학습성과", criteria: "최종 포트폴리오 포함" },
-      { id: "exam-human-final", courseId: "human-way", title: "기말고사", type: "final", date: "2026-12-08", location: "강의실", range: "기독교 인성 덕목과 대인관계", criteria: "논술형" },
+      { id: "exam-human-final", courseId: "human-way", title: "기말시험", type: "final", date: "2026-12-01", location: "강의실", range: "기독교 인성 덕목과 대인관계", criteria: "논술형" },
       { id: "exam-english-mid", courseId: "english-b", title: "중간고사", type: "midterm", date: "2026-10-26", location: "ONLINE 표기", range: "Unit 1~6 중심", criteria: "Oral and written work" },
       { id: "exam-english-final", courseId: "english-b", title: "기말고사", type: "final", date: "2026-12-14", location: "ONLINE 표기", range: "Unit 7~12 중심", criteria: "Oral and written work" },
       { id: "exam-unix-mid", courseId: "unix", title: "중간고사", type: "midterm", date: "2026-10-26", location: "강의실", range: "1~7주차", criteria: "서답형" },

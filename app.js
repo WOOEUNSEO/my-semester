@@ -139,15 +139,34 @@ function normalizeSemesterData(candidate) {
   const savedExams = Array.isArray(candidate.exams) ? candidate.exams : null;
   const savedEvents = Array.isArray(candidate.customEvents) ? candidate.customEvents : null;
   const savedChapels = Array.isArray(candidate.chapels) ? candidate.chapels.filter((item) => isPlainRecord(item) && typeof item.id === "string") : null;
+  const tasks = isLegacy && savedTasks ? mergeRecordsById(defaults.tasks, savedTasks, validTask) : (savedTasks ? savedTasks.filter(validTask) : defaults.tasks);
+  const exams = isLegacy && savedExams ? mergeRecordsById(defaults.exams, savedExams, validExam) : (savedExams ? savedExams.filter(validExam) : defaults.exams);
+  const savedChapelMap = new Map((savedChapels || []).map((chapel) => [chapel.id, chapel]));
+  const chapels = defaults.chapels.map((chapel) => ({ ...chapel, ...(savedChapelMap.get(chapel.id) || {}) }));
+
+  if (savedVersion < 4) {
+    const updatedTask = defaults.tasks.find((item) => item.id === "human-quiz");
+    const savedTask = tasks.find((item) => item.id === "human-quiz");
+    if (updatedTask && savedTask) {
+      const customNote = savedTask.notes && savedTask.notes !== "정직 수업에서 필요 시 실시" ? savedTask.notes : "";
+      Object.assign(savedTask, updatedTask, {
+        completed: Boolean(savedTask.completed),
+        notes: customNote ? `${updatedTask.notes} · ${customNote}` : updatedTask.notes
+      });
+    }
+
+    const humanExam = exams.find((item) => item.id === "exam-human-final");
+    if (humanExam) Object.assign(humanExam, { title: "기말시험", date: "2026-12-01" });
+  }
 
   return {
     ...defaults,
     meta: { ...defaults.meta, ...(isPlainRecord(candidate.meta) ? candidate.meta : {}) },
     version: currentVersion,
     courses,
-    chapels: savedChapels?.length ? savedChapels : defaults.chapels,
-    tasks: isLegacy && savedTasks ? mergeRecordsById(defaults.tasks, savedTasks, validTask) : (savedTasks ? savedTasks.filter(validTask) : defaults.tasks),
-    exams: isLegacy && savedExams ? mergeRecordsById(defaults.exams, savedExams, validExam) : (savedExams ? savedExams.filter(validExam) : defaults.exams),
+    chapels,
+    tasks,
+    exams,
     customEvents: savedEvents ? savedEvents.filter(validEvent) : defaults.customEvents
   };
 }
@@ -545,16 +564,38 @@ function renderExamsView() {
   `;
 }
 
+function renderChapelSeatMap(chapel) {
+  const start = Number(chapel.rowStart);
+  const end = Number(chapel.rowEnd);
+  const target = Number(chapel.seat);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || !Number.isInteger(target) || target < start || target > end) return "";
+
+  const seats = Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  return `
+    <div class="chapel-mini-map" aria-label="${escapeHtml(chapel.area)}구역 ${start}번부터 ${end}번 좌석 줄에서 ${target}번 위치">
+      <div class="chapel-stage-line"><span></span><strong>무대 방향</strong><span></span></div>
+      <div class="seat-line-head"><span>${start}번</span><small>${escapeHtml(chapel.area)}구역 · 같은 줄</small><span>${end}번</span></div>
+      <div class="seat-line" style="--seat-count:${seats.length}">
+        ${seats.map((seat) => `<span class="seat-cell${seat === target ? " active" : ""}" aria-label="${seat}번${seat === target ? ", 내 자리" : ""}">${seat === target ? `<strong>${seat}</strong>` : ""}</span>`).join("")}
+      </div>
+      <p class="seat-line-summary"><span class="seat-legend-dot"></span><strong>내 자리 ${target}번</strong><span>${start}번–${end}번 줄</span></p>
+    </div>
+  `;
+}
+
 function renderChapelView() {
   const host = document.getElementById("view-chapel");
   host.innerHTML = `
-    ${renderPageHeading("CHAPEL SEAT", "채플 좌석", "월요일 채플마다 구역과 좌석 번호를 간단히 확인합니다.")}
+    ${renderPageHeading("CHAPEL SEAT", "채플 좌석", "내 자리와 같은 줄의 양 끝 번호를 함께 확인합니다.")}
     <div class="chapel-seat-grid">
       ${semester.chapels.map((chapel) => `
         <article class="chapel-seat-card">
           <div class="chapel-seat-meta"><span>월요일</span><strong>${escapeHtml(chapel.period)}</strong></div>
-          <div class="seat-visual" aria-label="${chapel.area}구역 ${chapel.seat}번"><span>${escapeHtml(chapel.area)}</span><strong>${escapeHtml(chapel.seat)}</strong></div>
-          <p><strong>${escapeHtml(chapel.area)}구역</strong><span>${escapeHtml(chapel.seat)}번</span></p>
+          <div class="chapel-seat-heading">
+            <div class="seat-number-badge"><span>${escapeHtml(chapel.area)}구역</span><strong>${escapeHtml(chapel.seat)}</strong></div>
+            <div><small>좌석 위치</small><h2>${escapeHtml(chapel.area)}구역 ${escapeHtml(chapel.seat)}번</h2><p>${escapeHtml(chapel.name)} · ${escapeHtml(chapel.division)}분반</p></div>
+          </div>
+          ${renderChapelSeatMap(chapel)}
         </article>
       `).join("")}
     </div>
