@@ -770,8 +770,45 @@ h1 {
 }
 
 .agenda-list {
-  gap: 4px;
+  display: block;
   margin-top: 9px;
+}
+
+.agenda-group + .agenda-group {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.agenda-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  padding-inline: 2px;
+}
+
+.agenda-group-head strong {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.agenda-group-head small {
+  min-width: 15px;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 7px;
+  text-align: center;
+}
+
+.agenda-group-items {
+  display: grid;
+  gap: 4px;
 }
 
 .agenda-item {

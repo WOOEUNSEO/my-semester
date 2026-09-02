@@ -131,6 +131,16 @@ function normalizeSemesterData(candidate) {
     };
   });
 
+  if (savedVersion < 5) {
+    const humanCourse = courses.find((course) => course.id === "human-way");
+    const defaultHumanCourse = defaults.courses.find((course) => course.id === "human-way");
+    const previousDefaultMemos = new Set([
+      "8주차 수업에서 필요 시 수시고사가 있을 수 있습니다. 15주차에는 대인관계 역량을 평가하는 논술형 기말고사가 예정되어 있습니다.",
+      "14주차 기말시험과 과제·서류 마감이 안내되어 있습니다. 15주차 종강예배는 필참이며 출석점수에 반영됩니다."
+    ]);
+    if (humanCourse && defaultHumanCourse && previousDefaultMemos.has(humanCourse.examMemo)) humanCourse.examMemo = defaultHumanCourse.examMemo;
+  }
+
   const courseIds = new Set(courses.map((course) => course.id));
   const validTask = (item) => isPlainRecord(item) && typeof item.id === "string" && courseIds.has(item.courseId) && typeof item.title === "string" && typeof item.type === "string" && isIsoDateString(item.dueDate) && typeof item.notes === "string" && typeof item.completed === "boolean";
   const validExam = (item) => isPlainRecord(item) && typeof item.id === "string" && courseIds.has(item.courseId) && typeof item.title === "string" && typeof item.type === "string" && isIsoDateString(item.date) && typeof item.location === "string" && typeof item.range === "string" && typeof item.criteria === "string";
@@ -386,6 +396,16 @@ function renderPageHeading(eyebrow, title, description, actions = "") {
   `;
 }
 
+function compareTasksByDueDate(a, b) {
+  const aHasDate = Boolean(a.dueDate);
+  const bHasDate = Boolean(b.dueDate);
+  if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
+  if (aHasDate && a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+  const aOrder = Number(courseById(a.courseId)?.order || Number.MAX_SAFE_INTEGER);
+  const bOrder = Number(courseById(b.courseId)?.order || Number.MAX_SAFE_INTEGER);
+  return aOrder - bOrder || a.title.localeCompare(b.title, "ko");
+}
+
 function renderTaskItem(task) {
   const course = courseById(task.courseId);
   return `
@@ -408,7 +428,7 @@ function renderTasksView() {
   const total = semester.tasks.length;
   const completed = semester.tasks.filter((task) => task.completed).length;
   const remaining = total - completed;
-  const filtered = semester.tasks.filter((task) => ui.taskFilter === "todo" ? !task.completed : ui.taskFilter === "done" ? task.completed : true);
+  const filtered = semester.tasks.filter((task) => ui.taskFilter === "todo" ? !task.completed : ui.taskFilter === "done" ? task.completed : true).sort(compareTasksByDueDate);
 
   const groups = semester.courses.map((course) => {
     const tasks = filtered.filter((task) => task.courseId === course.id);
@@ -436,6 +456,39 @@ function renderTasksView() {
     </div></div>
     <div class="task-groups">${groups}</div>
   `;
+}
+
+function calendarCourseRank(item, date) {
+  const course = courseById(item.courseId);
+  const selectedDate = dateFromIso(date);
+  const weekday = selectedDate?.getDay();
+  const meetings = (course?.meetings || []).filter((meeting) => Number(meeting.day) === weekday).sort((a, b) => Number(a.start) - Number(b.start));
+  return {
+    scheduled: meetings.length ? 0 : 1,
+    start: meetings.length ? Number(meetings[0].start) : Number.MAX_SAFE_INTEGER,
+    courseOrder: Number(course?.order || Number.MAX_SAFE_INTEGER)
+  };
+}
+
+function compareCalendarItemsByTimetable(a, b, date) {
+  const aRank = calendarCourseRank(a, date);
+  const bRank = calendarCourseRank(b, date);
+  const kindOrder = { week: 0, task: 1, exam: 2, custom: 3 };
+  return aRank.scheduled - bRank.scheduled
+    || aRank.start - bRank.start
+    || aRank.courseOrder - bRank.courseOrder
+    || (kindOrder[a.kind] ?? 9) - (kindOrder[b.kind] ?? 9)
+    || a.title.localeCompare(b.title, "ko");
+}
+
+function calendarItemScheduleLabel(item, date) {
+  const course = courseById(item.courseId);
+  const weekday = dateFromIso(date)?.getDay();
+  const meeting = (course?.meetings || []).filter((entry) => Number(entry.day) === weekday).sort((a, b) => Number(a.start) - Number(b.start))[0];
+  if (!meeting) return "";
+  const startPeriod = Number(meeting.start) - hourStart + 1;
+  const endPeriod = Number(meeting.end) - hourStart;
+  return startPeriod === endPeriod ? `${startPeriod}교시` : `${startPeriod}~${endPeriod}교시`;
 }
 
 function collectCalendarItems() {
@@ -471,17 +524,37 @@ function collectCalendarItems() {
     const course = courseById(event.courseId);
     items.push({ ...event, kind: "custom", title: event.courseId ? `${course?.shortName || "과목"} · ${event.title}` : event.title, shortTitle: event.title, color: course?.color || "#c2a1dd" });
   });
-  return items.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
+  return items.sort((a, b) => a.date.localeCompare(b.date) || compareCalendarItemsByTimetable(a, b, a.date));
 }
 
-function renderAgendaItem(item) {
+function renderAgendaItem(item, date) {
   const labels = { week: "수업계획", task: "체크리스트", exam: "시험", custom: "직접 추가" };
+  const scheduleLabel = calendarItemScheduleLabel(item, date);
   return `
     <button class="agenda-item" type="button" data-calendar-kind="${item.kind}" data-calendar-id="${item.id}" style="--event-color:${item.color}">
       <span class="agenda-dot" aria-hidden="true"></span>
-      <span><small>${labels[item.kind]}</small><strong>${escapeHtml(item.title)}</strong>${item.detail ? `<em>${escapeHtml(item.detail)}</em>` : ""}</span>
+      <span><small>${scheduleLabel ? `${escapeHtml(scheduleLabel)} · ` : ""}${labels[item.kind]}</small><strong>${escapeHtml(item.title)}</strong>${item.detail ? `<em>${escapeHtml(item.detail)}</em>` : ""}</span>
     </button>
   `;
+}
+
+function renderAgendaGroups(items, date) {
+  const definitions = [
+    { kind: "week", label: "수업계획" },
+    { kind: "task", label: "체크리스트" },
+    { kind: "exam", label: "시험" },
+    { kind: "custom", label: "직접 추가" }
+  ];
+  return definitions.map(({ kind, label }) => {
+    const groupItems = items.filter((item) => item.kind === kind).sort((a, b) => compareCalendarItemsByTimetable(a, b, date));
+    if (!groupItems.length) return "";
+    return `
+      <section class="agenda-group" aria-label="${label}">
+        <header class="agenda-group-head"><strong>${label}</strong><small>${groupItems.length}</small></header>
+        <div class="agenda-group-items">${groupItems.map((item) => renderAgendaItem(item, date)).join("")}</div>
+      </section>
+    `;
+  }).join("");
 }
 
 function renderCalendarView() {
@@ -513,7 +586,7 @@ function renderCalendarView() {
     `);
   }
 
-  const selectedItems = items.filter((item) => item.date === ui.selectedDate);
+  const selectedItems = items.filter((item) => item.date === ui.selectedDate).sort((a, b) => compareCalendarItemsByTimetable(a, b, ui.selectedDate));
   host.innerHTML = `
     ${renderPageHeading("SEMESTER CALENDAR", "전체 캘린더", "수업계획서의 주차별 내용과 직접 추가한 일정을 함께 관리합니다.", `<button class="primary-button" type="button" data-action="add-event" data-date="${ui.selectedDate}">일정 추가</button>`)}
     <div class="calendar-shell">
@@ -530,7 +603,7 @@ function renderCalendarView() {
       </section>
       <aside class="day-agenda">
         <div class="day-agenda-head"><div><p class="eyebrow">SELECTED DAY</p><h2>${formatDate(ui.selectedDate, { includeYear: true })}</h2></div><button class="icon-text-button" type="button" data-action="add-event" data-date="${ui.selectedDate}">+ 메모</button></div>
-        <div class="agenda-list">${selectedItems.length ? selectedItems.map(renderAgendaItem).join("") : `<div class="agenda-empty"><strong>등록된 일정이 없어요.</strong><p>이 날짜에 수업 메모나 개인 일정을 추가할 수 있어요.</p></div>`}</div>
+        <div class="agenda-list">${selectedItems.length ? renderAgendaGroups(selectedItems, ui.selectedDate) : `<div class="agenda-empty"><strong>등록된 일정이 없어요.</strong><p>이 날짜에 수업 메모나 개인 일정을 추가할 수 있어요.</p></div>`}</div>
       </aside>
     </div>
   `;
@@ -722,6 +795,7 @@ function openTaskEditor(courseId = semester.courses[0]?.id, taskId = "") {
       const next = { id: task?.id || makeId("task"), title: String(formData.get("title") || "").trim(), courseId: String(formData.get("courseId") || ""), type: String(formData.get("type") || "other"), dueDate: String(formData.get("dueDate") || ""), notes: String(formData.get("notes") || "").trim(), completed: formData.get("completed") === "on" };
       if (task) Object.assign(task, next);
       else semester.tasks.push(next);
+      semester.tasks.sort(compareTasksByDueDate);
       persistSemester();
       renderActiveView();
       showToast(task ? "체크리스트를 수정했어요." : "체크리스트에 추가했어요.");
